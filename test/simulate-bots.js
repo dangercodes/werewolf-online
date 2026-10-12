@@ -26,8 +26,18 @@ const token = 'host-solo-' + Math.random().toString(36).slice(2, 8);
 let state = null;
 let lastKey = '';
 let doctorLast = null;
+const DAY_MSG = 'Halo semua, diskusi dulu yuk — siapa yang mencurigakan?';
+const NIGHT_MSG = 'Pesan malam ilegal';
+let sentDayChat = false;
+let sentNightChat = false;
 const socket = io(URL, { transports: ['websocket'], reconnection: false });
-socket.on('state', (s) => { state = s; act(); });
+socket.on('state', (s) => {
+  state = s;
+  // uji chat: kirim saat siang (harus diterima) dan saat malam (harus ditolak)
+  if (s.phase === 'day' && s.you?.alive && !sentDayChat) { sentDayChat = true; socket.emit('chat', { text: DAY_MSG }); }
+  if (s.phase === 'night' && s.nightNum >= 2 && !sentNightChat) { sentNightChat = true; socket.emit('chat', { text: NIGHT_MSG }); }
+  act();
+});
 socket.on('err', (m) => console.log('  [err]', m));
 
 function act() {
@@ -94,6 +104,11 @@ function act() {
   console.log('Pemenang:', state.winner, '| Malam ke-', state.nightNum, '| Peran host:', state.you.role);
   console.log('Log akhir:\n' + state.log.map(l => '   ' + l).join('\n'));
   check(state.winner === 'warga' || state.winner === 'werewolf', 'ada pemenang yang sah');
+  const chatTexts = (state.chat || []).map(c => c.text);
+  if (sentDayChat) check(chatTexts.includes(DAY_MSG), 'chat diskusi terkirim & muncul di state semua pemain');
+  if (sentNightChat) check(!chatTexts.includes(NIGHT_MSG), 'chat saat malam hari ditolak server');
+  const botChats = (state.chat || []).filter(c => c.isBot).length;
+  console.log(`   (pesan chat bot selama game: ${botChats})`);
   const deadBots = state.players.filter(p => p.isBot && !p.alive).length;
   check(state.log.length >= 5, `log permainan terisi (${state.log.length} baris, bot gugur: ${deadBots})`);
 

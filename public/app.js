@@ -26,8 +26,11 @@ let storedRoom = localStorage.getItem('ww_room') || '';
 let idVoice = null;
 function pickVoice() {
   const voices = speechSynthesis.getVoices();
-  idVoice = voices.find(v => /^id([-_]|$)/i.test(v.lang)) ||
-            voices.find(v => /indonesia/i.test(v.name)) || null;
+  const idVoices = voices.filter(v => /^id([-_]|$)/i.test(v.lang) || /indonesia/i.test(v.name));
+  // prioritaskan suara paling natural: Google Bahasa Indonesia, lalu varian "Natural", lalu suara id apa pun
+  idVoice = idVoices.find(v => /google/i.test(v.name)) ||
+            idVoices.find(v => /natural|neural/i.test(v.name)) ||
+            idVoices[0] || null;
 }
 if ('speechSynthesis' in window) {
   pickVoice();
@@ -40,7 +43,8 @@ function speak(text) {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'id-ID';
     if (idVoice) u.voice = idVoice;
-    u.rate = 1.0;
+    u.rate = 0.98; // sedikit lebih santai dari kecepatan bawaan
+    u.pitch = 1.0;
     speechSynthesis.speak(u);
   } catch (e) { /* diam saja */ }
 }
@@ -209,6 +213,7 @@ function renderGame() {
   renderReveal(s);
   renderAction(s);
   renderVoteResult(s);
+  renderChat(s);
 
   $('playersGrid').innerHTML = s.players.map(p => `
     <div class="tile ${p.alive ? '' : 'dead'}">
@@ -365,6 +370,43 @@ function renderVoteResult(s) {
   card.classList.remove('hidden');
 }
 
+/* ---------- chat diskusi ---------- */
+let lastChatLen = -1;
+function renderChat(s) {
+  const card = $('chatCard');
+  const inChatPhase = s.phase === 'day' || s.phase === 'voting';
+  card.classList.toggle('hidden', !inChatPhase);
+  if (!inChatPhase) { lastChatLen = -1; return; }
+  const msgs = s.chat || [];
+  const input = $('chatInput');
+  const sendBtn = $('chatSend');
+  const canChat = s.you?.alive;
+  input.disabled = !canChat;
+  sendBtn.disabled = !canChat;
+  $('chatNote').textContent = canChat
+    ? 'Ngobrol di sini buat bahas siapa werewolf-nya. Semua pemain bisa baca.'
+    : 'Kamu sudah gugur — cuma bisa menyimak obrolan.';
+  if (msgs.length === lastChatLen) return;
+  lastChatLen = msgs.length;
+  const list = $('chatList');
+  list.innerHTML = msgs.length
+    ? msgs.map(m => `
+      <div class="chat-msg ${m.token && m.token === s.you?.token ? 'mine' : ''}">
+        <span class="cname">${esc(m.name)}${m.isBot ? ' 🤖' : ''}</span>
+        <span class="ctext">${esc(m.text)}</span>
+      </div>`).join('')
+    : '<div class="chat-empty">Belum ada obrolan. Mulai aja, tuduh seseorang! 😄</div>';
+  list.scrollTop = list.scrollHeight;
+}
+function sendChat() {
+  const input = $('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chat', { text });
+  input.value = '';
+  input.focus();
+}
+
 /* ---------- game over ---------- */
 function renderOver() {
   const s = state;
@@ -488,5 +530,7 @@ $('startBtn').addEventListener('click', () => socket.emit('startGame'));
 $('beginNightBtn').addEventListener('click', () => socket.emit('beginNight'));
 $('playAgainBtn').addEventListener('click', () => socket.emit('playAgain'));
 $('flipCard').addEventListener('click', () => $('flipCard').classList.toggle('flipped'));
+$('chatSend').addEventListener('click', sendChat);
+$('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
 render();

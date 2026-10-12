@@ -202,6 +202,18 @@ input[type="text"]:focus, select:focus { border-color: var(--accent2); box-shado
 .log-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
 .log-list li { padding: 6px 4px; border-bottom: 1px dashed rgba(255,255,255,.07); color: var(--muted); font-size: .9rem; }
 
+/* chat diskusi */
+.chat-list { max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding: 4px 2px; }
+.chat-msg { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 7px 11px; max-width: 88%; align-self: flex-start; animation: fadeUp .3s ease both; }
+.chat-msg.mine { align-self: flex-end; background: rgba(124,92,255,.28); border-color: rgba(124,92,255,.5); }
+.chat-msg .cname { font-size: .72rem; font-weight: 800; color: var(--accent); display: block; margin-bottom: 1px; }
+.chat-msg.mine .cname { color: #cdbfff; }
+.chat-msg .ctext { font-size: .93rem; line-height: 1.4; word-break: break-word; }
+.chat-row { display: flex; gap: 8px; margin-top: 10px; }
+.chat-row input { flex: 1; }
+.chat-row .btn { flex: none; }
+.chat-empty { color: var(--muted); font-size: .88rem; text-align: center; padding: 8px 0; }
+
 .over-emoji { font-size: 76px; animation: bob 2.4s ease-in-out infinite; }
 
 .toast {
