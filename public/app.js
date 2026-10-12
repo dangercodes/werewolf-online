@@ -52,6 +52,7 @@ function updateNarratorBtn() {
 const socket = io();
 let state = null;
 let lastAnnounceSeq = 0;
+let soloPending = false;
 let lastNightPick = null;
 let lastNightNum = 0;
 let lastVote = undefined;
@@ -71,6 +72,11 @@ socket.on('state', (s) => {
   if (s.announcement && s.announcement.seq > lastAnnounceSeq) {
     lastAnnounceSeq = s.announcement.seq;
     if (s.announcement.speak) speak(s.announcement.speak);
+  }
+  // mode solo: isi room dengan bot sampai 7 pemain, lalu mulai otomatis
+  if (soloPending && s.phase === 'lobby' && s.you?.isHost) {
+    if (s.players.length < 7) socket.emit('addBot');
+    else { soloPending = false; socket.emit('startGame'); }
   }
   render(prevPhase);
 });
@@ -139,7 +145,9 @@ function renderLobby() {
       <span>${esc(p.name)}</span>
       ${p.isHost ? '<span class="badge">HOST</span>' : ''}
       ${p.isYou ? '<span class="badge" style="background:#2f9e63">KAMU</span>' : ''}
+      ${p.isBot ? '<span class="badge" style="background:#8a6d1f">🤖 BOT</span>' : ''}
       ${p.connected ? '' : '<span class="muted small">(terputus)</span>'}
+      ${p.isBot && state.you?.isHost ? `<button class="btn small danger" data-action="removeBot" data-target="${p.token}" style="margin-left:auto">✕</button>` : ''}
     </li>`).join('');
 
   const isHost = state.you?.isHost;
@@ -154,6 +162,9 @@ function renderLobby() {
   $('startBtn').classList.toggle('hidden', !isHost);
   $('startBtn').disabled = n < 5;
   $('startBtn').textContent = n < 5 ? `🎮 Mulai Game (butuh ${5 - n} pemain lagi)` : '🎮 Mulai Game';
+  $('addBotBtn').classList.toggle('hidden', !isHost);
+  $('addBotBtn').disabled = n >= 15;
+  $('addBotBtn').textContent = n >= 15 ? '🤖 Room Penuh (15)' : '🤖 Tambah Bot (isi kursi kosong)';
   $('lobbyWait').classList.toggle('hidden', isHost);
 }
 
@@ -203,7 +214,7 @@ function renderGame() {
     <div class="tile ${p.alive ? '' : 'dead'}">
       <span class="cdot ${p.connected ? '' : 'off'}"></span>
       <div class="avatar">${p.roleEmoji || '🧑'}</div>
-      <div class="tname">${esc(p.name)}${p.isYou ? ' (kamu)' : ''}</div>
+      <div class="tname">${esc(p.name)}${p.isBot ? ' 🤖' : ''}${p.isYou ? ' (kamu)' : ''}</div>
       <div class="tstatus">${p.roleName ? esc(p.roleName) : (p.alive ? 'Masih hidup' : 'Gugur')}</div>
     </div>`).join('');
 
@@ -418,6 +429,7 @@ document.addEventListener('click', (e) => {
   if (action === 'abstain') { lastVote = null; socket.emit('castVote', { target: null }); render(); }
   if (action === 'force') socket.emit('forceAdvance');
   if (action === 'startVoting') socket.emit('startVoting');
+  if (action === 'removeBot') socket.emit('removeBot', { token: target });
 });
 
 /* ---------- binding UI ---------- */
@@ -434,6 +446,12 @@ $('createBtn').addEventListener('click', () => {
   const name = myName(); if (!name) return;
   socket.emit('createRoom', { name, token: myToken });
 });
+$('soloBtn').addEventListener('click', () => {
+  const name = myName(); if (!name) return;
+  soloPending = true;
+  socket.emit('createRoom', { name, token: myToken });
+});
+$('addBotBtn').addEventListener('click', () => socket.emit('addBot'));
 $('joinBtn').addEventListener('click', () => {
   const name = myName(); if (!name) return;
   const code = $('codeInput').value.trim().toUpperCase();
@@ -452,6 +470,7 @@ $('narratorBtn').addEventListener('click', () => {
 $('leaveBtn').addEventListener('click', () => {
   socket.emit('leaveRoom');
   state = null;
+  soloPending = false;
   storedRoom = '';
   localStorage.removeItem('ww_room');
   render();

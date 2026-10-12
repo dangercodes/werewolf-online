@@ -127,6 +127,7 @@ function publicPlayer(room, p, viewer) {
     alive: p.alive,
     connected: p.connected,
     isHost: room.hostToken === p.token,
+    isBot: !!p.isBot,
     isYou: viewer ? viewer.token === p.token : false,
     role: revealRole ? p.role : null,
     roleName: revealRole && p.role ? ROLE_INFO[p.role].name : null,
@@ -272,6 +273,7 @@ function startNight(room) {
   clearTimer(room, 'night');
   room.timers.night = setTimeout(() => resolveNight(room), room.settings.nightSec * 1000);
   broadcast(room);
+  scheduleBots(room);
 }
 
 function nightPendingCount(room) {
@@ -379,6 +381,7 @@ function startVoting(room) {
   clearTimer(room, 'vote');
   room.timers.vote = setTimeout(() => resolveVoting(room), room.settings.voteSec * 1000);
   broadcast(room);
+  scheduleBots(room);
 }
 
 function resolveVoting(room) {
@@ -429,6 +432,7 @@ function enterHunterPhase(room, hunterToken, returnTo, ann) {
   clearTimer(room, 'hunter');
   room.timers.hunter = setTimeout(() => expireHunter(room), room.settings.hunterSec * 1000);
   broadcast(room);
+  scheduleBots(room);
 }
 
 function proceedAfterHunter(room, returnTo) {
@@ -473,6 +477,7 @@ function startGame(room) {
   players.forEach((p, i) => {
     p.role = shuffledRoles[i];
     p.alive = true;
+    if (p.isBot) p.botMemory = { checked: new Map() };
   });
   room.nightNum = 0;
   room.dayNum = 0;
@@ -492,6 +497,138 @@ function beginFirstNight(room) {
   if (room.phase !== 'reveal') return;
   room.nightNum = 0;
   startNight(room);
+}
+
+/* ---------------- aksi bersama (manusia & bot) ---------------- */
+function applyNightAction(room, player, target) {
+  if (room.phase !== 'night' || !player.alive || !room.night) return null;
+  const targetPlayer = room.players.get(target);
+  if (!targetPlayer || !targetPlayer.alive) return null;
+
+  if (player.role === 'werewolf') {
+    if (targetPlayer.role === 'werewolf') return null; // tidak memangsa sesama werewolf
+    if (!room.night.wolfVotes.has(player.token)) room.night.voteOrder.push(target);
+    room.night.wolfVotes.set(player.token, target);
+    room.night.submitted.add(player.token);
+  } else if (player.role === 'seer') {
+    if (target === player.token) return null;
+    room.night.seer = { by: player.token, target, isWolf: targetPlayer.role === 'werewolf' };
+    room.night.submitted.add(player.token);
+    if (player.isBot && player.botMemory) player.botMemory.checked.set(target, targetPlayer.role === 'werewolf');
+  } else if (player.role === 'doctor') {
+    if (room.lastDoctorTarget && room.lastDoctorTarget === target) {
+      return 'Tidak boleh melindungi orang yang sama dua malam berturut-turut.';
+    }
+    room.night.doctorTarget = target;
+    room.night.submitted.add(player.token);
+  } else {
+    return null; // warga & pemburu tidak punya aksi malam
+  }
+  broadcast(room);
+  maybeFinishNight(room);
+  return null;
+}
+
+function applyVote(room, player, target) {
+  if (room.phase !== 'voting' || !player.alive) return;
+  if (target !== null) {
+    const tp = room.players.get(target);
+    if (!tp || !tp.alive || target === player.token) return;
+  }
+  room.votes.set(player.token, target);
+  broadcast(room);
+  if (room.votes.size >= alivePlayers(room).length) resolveVoting(room);
+}
+
+/* ---------------- bot AI ---------------- */
+const BOT_NAMES = ['Sari', 'Joko', 'Rina', 'Bambang', 'Sinta', 'Agus', 'Dewi', 'Rudi',
+  'Fitri', 'Eko', 'Maya', 'Hendra', 'Lilis', 'Bima', 'Tari', 'Yoga', 'Wati', 'Dedi'];
+let botSeq = 0;
+
+function addBotToRoom(room) {
+  const used = new Set([...room.players.values()].map(p => p.name));
+  let name = BOT_NAMES.find(n => !used.has(n));
+  if (!name) name = 'Bot ' + (++botSeq);
+  const token = 'bot-' + (++botSeq) + '-' + Math.random().toString(36).slice(2, 7);
+  room.players.set(token, {
+    token, socketId: null, name, role: null, alive: true,
+    connected: true, isBot: true, joinedAt: now(),
+    botMemory: { checked: new Map() },
+  });
+  return room.players.get(token);
+}
+
+const botPick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const botDelay = () => 1200 + Math.random() * 2600;
+
+function botNightTarget(room, bot) {
+  const others = alivePlayers(room).filter(p => p.token !== bot.token);
+  if (bot.role === 'werewolf') {
+    const prey = others.filter(p => p.role !== 'werewolf');
+    return prey.length ? botPick(prey).token : null;
+  }
+  if (bot.role === 'seer') {
+    const unchecked = others.filter(p => !bot.botMemory.checked.has(p.token));
+    const pool = unchecked.length ? unchecked : others;
+    return pool.length ? botPick(pool).token : null;
+  }
+  if (bot.role === 'doctor') {
+    const pool = alivePlayers(room).filter(p => p.token !== room.lastDoctorTarget);
+    return pool.length ? botPick(pool).token : null;
+  }
+  return null;
+}
+
+function botVoteTarget(room, bot) {
+  const others = alivePlayers(room).filter(p => p.token !== bot.token);
+  if (!others.length) return null;
+  if (Math.random() < 0.08) return null; // sesekali golput
+  if (bot.role === 'werewolf') {
+    const prey = others.filter(p => p.role !== 'werewolf');
+    return prey.length ? botPick(prey).token : null;
+  }
+  if (bot.role === 'seer') {
+    const knownWolf = others.find(p => bot.botMemory.checked.get(p.token) === true);
+    if (knownWolf) return knownWolf.token;
+    const notCleared = others.filter(p => bot.botMemory.checked.get(p.token) !== false);
+    return botPick(notCleared.length ? notCleared : others).token;
+  }
+  return botPick(others).token;
+}
+
+// Jadwalkan aksi semua bot yang berkepentingan pada fase saat ini.
+// Setiap callback memvalidasi ulang fase & nomor malam agar aman dari timer basi.
+function scheduleBots(room) {
+  const phase = room.phase;
+  const nightNum = room.nightNum;
+  for (const bot of room.players.values()) {
+    if (!bot.isBot) continue;
+    if (phase === 'night') {
+      if (!bot.alive || !['werewolf', 'seer', 'doctor'].includes(bot.role)) continue;
+      if (room.night?.submitted.has(bot.token)) continue;
+      setTimeout(() => {
+        if (!rooms.has(room.code) || room.phase !== 'night' || room.nightNum !== nightNum) return;
+        if (!bot.alive || room.night?.submitted.has(bot.token)) return;
+        const target = botNightTarget(room, bot);
+        if (target) applyNightAction(room, bot, target);
+      }, botDelay());
+    } else if (phase === 'voting') {
+      if (!bot.alive) continue;
+      setTimeout(() => {
+        if (!rooms.has(room.code) || room.phase !== 'voting' || room.nightNum !== nightNum) return;
+        if (!bot.alive || room.votes.has(bot.token)) return;
+        applyVote(room, bot, botVoteTarget(room, bot));
+      }, botDelay());
+    } else if (phase === 'hunter') {
+      if (!room.hunterPending || room.hunterPending.hunterToken !== bot.token) continue;
+      setTimeout(() => {
+        if (!rooms.has(room.code) || room.phase !== 'hunter') return;
+        if (!room.hunterPending || room.hunterPending.hunterToken !== bot.token) return;
+        const others = alivePlayers(room).filter(p => p.token !== bot.token);
+        if (others.length) hunterShoot(room, bot, botPick(others).token);
+      }, botDelay());
+    }
+  }
 }
 
 /* ---------------- socket handlers ---------------- */
@@ -567,9 +704,10 @@ io.on('connection', (socket) => {
     socket.leave(room.code);
     if (room.phase === 'lobby') {
       room.players.delete(player.token);
-      if (room.players.size === 0) { rooms.delete(room.code); return; }
+      const humans = [...room.players.values()].filter(p => !p.isBot);
+      if (humans.length === 0) { rooms.delete(room.code); return; }
       if (room.hostToken === player.token) {
-        room.hostToken = [...room.players.keys()][0];
+        room.hostToken = humans[0].token;
       }
       broadcast(room);
     } else {
@@ -592,6 +730,28 @@ io.on('connection', (socket) => {
       if (roleComposition(room.players.size, room.settings).villager < 1) room.settings.doctor = true;
     }
     broadcast(room);
+  });
+
+  socket.on('addBot', () => {
+    const ref = findPlayerBySocket(socket.id);
+    if (!ref) return;
+    const { room, player } = ref;
+    if (room.hostToken !== player.token || room.phase !== 'lobby') return;
+    if (room.players.size >= 15) return socket.emit('err', 'Room sudah penuh (maks 15 pemain).');
+    addBotToRoom(room);
+    broadcast(room);
+  });
+
+  socket.on('removeBot', ({ token }) => {
+    const ref = findPlayerBySocket(socket.id);
+    if (!ref) return;
+    const { room, player } = ref;
+    if (room.hostToken !== player.token || room.phase !== 'lobby') return;
+    const bot = room.players.get(token);
+    if (bot?.isBot) {
+      room.players.delete(token);
+      broadcast(room);
+    }
   });
 
   socket.on('startGame', () => {
@@ -618,30 +778,8 @@ io.on('connection', (socket) => {
     const ref = findPlayerBySocket(socket.id);
     if (!ref) return;
     const { room, player } = ref;
-    if (room.phase !== 'night' || !player.alive || !room.night) return;
-    const targetPlayer = room.players.get(target);
-    if (!targetPlayer || !targetPlayer.alive) return;
-
-    if (player.role === 'werewolf') {
-      if (targetPlayer.role === 'werewolf') return; // tidak memangsa sesama werewolf
-      if (!room.night.wolfVotes.has(player.token)) room.night.voteOrder.push(target);
-      room.night.wolfVotes.set(player.token, target);
-      room.night.submitted.add(player.token);
-    } else if (player.role === 'seer') {
-      if (target === player.token) return;
-      room.night.seer = { by: player.token, target, isWolf: targetPlayer.role === 'werewolf' };
-      room.night.submitted.add(player.token);
-    } else if (player.role === 'doctor') {
-      if (room.lastDoctorTarget && room.lastDoctorTarget === target) {
-        return socket.emit('err', 'Tidak boleh melindungi orang yang sama dua malam berturut-turut.');
-      }
-      room.night.doctorTarget = target;
-      room.night.submitted.add(player.token);
-    } else {
-      return; // warga & pemburu tidak punya aksi malam
-    }
-    broadcast(room);
-    maybeFinishNight(room);
+    const err = applyNightAction(room, player, target);
+    if (err) socket.emit('err', err);
   });
 
   socket.on('hunterShot', ({ target }) => {
@@ -675,14 +813,7 @@ io.on('connection', (socket) => {
     const ref = findPlayerBySocket(socket.id);
     if (!ref) return;
     const { room, player } = ref;
-    if (room.phase !== 'voting' || !player.alive) return;
-    if (target !== null) {
-      const tp = room.players.get(target);
-      if (!tp || !tp.alive || target === player.token) return;
-    }
-    room.votes.set(player.token, target);
-    broadcast(room);
-    if (room.votes.size >= alivePlayers(room).length) resolveVoting(room);
+    applyVote(room, player, target);
   });
 
   socket.on('playAgain', () => {
@@ -709,9 +840,10 @@ io.on('connection', (socket) => {
     player.connected = false;
     if (room.phase === 'lobby') {
       room.players.delete(player.token);
-      if (room.players.size === 0) { rooms.delete(room.code); return; }
+      const humans = [...room.players.values()].filter(p => !p.isBot);
+      if (humans.length === 0) { rooms.delete(room.code); return; }
       if (room.hostToken === player.token) {
-        room.hostToken = [...room.players.keys()][0];
+        room.hostToken = humans[0].token;
       }
     }
     broadcast(room);

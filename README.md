@@ -4,6 +4,8 @@ Game Werewolf **multiplayer online** — main bareng teman dari jarak jauh. Satu
 
 Dilengkapi **narator suara Bahasa Indonesia** (dibacakan otomatis di tiap HP pemain, bisa dimatikan per pemain) dan tampilan interaktif bertema malam.
 
+Bisa juga dimainkan **melawan bot AI**: sendiri untuk latihan, atau untuk mengisi kursi kosong di room multiplayer.
+
 ## Cara Menjalankan (Lokal)
 
 Butuh Node.js 18+.
@@ -27,6 +29,12 @@ Buka `http://localhost:3000` di browser. Untuk dicoba dari HP di jaringan yang s
 8. Warga menang bila semua werewolf gugur; werewolf menang bila jumlahnya menyamai warga.
 
 Aturan yang dijaga server: dokter tidak boleh melindungi orang yang sama dua malam berturut-turut; werewolf tidak bisa memangsa sesamanya; peran pemain lain tidak pernah dikirim ke HP yang tidak berhak (werewolf hanya melihat rekannya, penerawang hanya melihat hasil terawangannya sendiri). Pemain yang putus koneksi bisa masuk lagi ke room yang sama dan melanjutkan dengan peran yang sama.
+
+## Main dengan Bot
+
+- **Solo:** di halaman awal pilih **🤖 Main Sendiri vs Bot** — room otomatis terisi 6 bot dan permainan langsung dimulai.
+- **Isi kursi kosong:** di lobby, host menekan **🤖 Tambah Bot** (bisa dihapus lagi dengan tombol ✕) sampai jumlah pemain cukup (total tetap 5–15 termasuk bot).
+- Bot bermain penuh seperti pemain biasa: memangsa/menerawang/melindungi di malam hari (penerawang bot mengingat hasil terawangannya dan memakainya saat voting), ikut voting, dan bot Pemburu akan menembak saat gugur. Bot bertindak dengan jeda 1–4 detik agar permainan terasa alami.
 
 ## Deploy (Pilih Salah Satu)
 
@@ -76,6 +84,12 @@ node test/simulate.js        # terminal 2 — 7 bot memainkan 1 game penuh
 
 `test/simulate.js` memeriksa: pembuatan room, komposisi peran, privasi peran antar pemain, reconnect di tengah game, alur malam→siang→voting sampai ada pemenang, dan tombol Main Lagi kembali ke lobby.
 
+```bash
+node test/simulate-bots.js   # 1 klien manusia + 6 bot server main sampai selesai
+```
+
+`test/simulate-bots.js` memeriksa mode bot: tambah/hapus bot di lobby, bot bertindak di semua fase (termasuk tembakan Pemburu bot dan penyelamatan Dokter bot), sampai ada pemenang.
+
 ## Struktur
 
 ```
@@ -84,5 +98,6 @@ public/
   index.html       Kerangka tampilan
   style.css        Tema malam interaktif (animasi bulan, bintang, kartu flip)
   app.js           Client: lobby, gameplay, narator suara id-ID
-test/simulate.js   Bot penguji end-to-end
+test/simulate.js   Bot penguji end-to-end (multiplayer)
+test/simulate-bots.js  Bot penguji mode bot (1 manusia + bot server)
 ```

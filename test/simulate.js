@@ -149,7 +149,15 @@ async function waitFor(fn, timeoutMs, label) {
 
   // mulai malam pertama, lalu bebaskan aksi otomatis host
   host.emit('beginNight');
-  await waitFor(() => host.state.phase === 'night', 5000, 'malam pertama dimulai');
+  try {
+    await waitFor(() => host.state.phase === 'night', 5000, 'malam pertama dimulai');
+  } catch (e) {
+    console.log('DUMP beginNight:', JSON.stringify({
+      fase: host.state?.phase, isHost: host.state?.you?.isHost,
+      pemain: host.state?.players?.length, err: host.lastError || null,
+    }));
+    throw e;
+  }
   host.holdHost = false;
   host.lastKey = ''; // paksa evaluasi ulang state host
 

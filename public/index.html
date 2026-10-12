@@ -34,6 +34,7 @@
       <label class="lbl" for="nameInput">Nama kamu</label>
       <input id="nameInput" type="text" maxlength="20" placeholder="cth: Budi" autocomplete="off">
       <button id="createBtn" class="btn primary big">🎲 Buat Room Baru</button>
+      <button id="soloBtn" class="btn big">🤖 Main Sendiri vs Bot</button>
       <div class="divider"><span>atau gabung room teman</span></div>
       <label class="lbl" for="codeInput">Kode room</label>
       <input id="codeInput" type="text" maxlength="4" placeholder="cth: K7QX" autocomplete="off" class="code-input">
@@ -49,6 +50,7 @@
         <li><b>Malam:</b> werewolf memilih mangsa, penerawang menerawang identitas, dokter melindungi seseorang — semua lewat HP masing-masing.</li>
         <li><b>Siang:</b> korban diumumkan, semua diskusi (ada timer), lalu <b>voting</b> siapa yang dieksekusi.</li>
         <li>Warga menang jika semua werewolf gugur. Werewolf menang jika jumlahnya menyamai warga. Selamat saling tuduh! 😄</li>
+        <li>Kurang orang? Host bisa menekan <b>🤖 Tambah Bot</b> di lobby untuk mengisi kursi kosong dengan pemain AI — atau pilih <b>Main Sendiri vs Bot</b> di halaman awal untuk langsung main solo melawan 6 bot.</li>
       </ol>
     </details>
   </section>
@@ -89,6 +91,7 @@
       <div id="compositionInfo" class="muted"></div>
     </div>
 
+    <button id="addBotBtn" class="btn big hidden">🤖 Tambah Bot (isi kursi kosong)</button>
     <button id="startBtn" class="btn primary big hidden">🎮 Mulai Game</button>
     <div id="lobbyWait" class="card center muted hidden">Menunggu host memulai permainan…</div>
   </section>
