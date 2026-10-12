@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Werewolf Online — Main Bareng Teman Jarak Jauh</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=12">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐺</text></svg>">
 </head>
 <body class="phase-home">
@@ -17,6 +17,7 @@
   <div class="top-actions">
     <span id="roomChip" class="chip hidden"></span>
     <button id="narratorBtn" class="btn small ghost" title="Narator suara Bahasa Indonesia">🔊 Narator: ON</button>
+    <button id="musicBtn" class="btn small ghost musicBtn" title="Musik latar seram">🎵 Musik: ON</button>
     <button id="leaveBtn" class="btn small danger hidden">Keluar</button>
   </div>
 </header>
@@ -28,6 +29,7 @@
       <div class="hero-wolf">🐺</div>
       <h1>WEREWOLF <span>ONLINE</span></h1>
       <p class="tagline">Main bareng teman dari mana saja — buat room, bagikan kodenya, dan saling tuduh dari HP masing-masing!</p>
+      <canvas id="hero3d" class="hero3d" aria-hidden="true"></canvas>
     </div>
 
     <div class="card">
@@ -41,6 +43,10 @@
       <button id="joinBtn" class="btn big">🚪 Gabung Room</button>
     </div>
 
+    <div class="center" style="margin:4px 0 14px">
+      <button id="musicBtnHome" class="btn small ghost musicBtn" title="Musik latar seram">🎵 Musik: ON</button>
+    </div>
+
     <details class="card howto">
       <summary>📖 Cara Main</summary>
       <ol>
@@ -52,6 +58,7 @@
         <li>Warga menang jika semua werewolf gugur. Werewolf menang jika jumlahnya menyamai warga. Selamat saling tuduh! 😄</li>
         <li>Kurang orang? Host bisa menekan <b>🤖 Tambah Bot</b> di lobby untuk mengisi kursi kosong dengan pemain AI — atau pilih <b>Main Sendiri vs Bot</b> di halaman awal untuk langsung main solo melawan 6 bot.</li>
       </ol>
+      <p class="muted small">Kredit suara — Musik: "Dark Walk" oleh Kevin MacLeod (incompetech.com), CC BY 4.0. Efek terkaman: "Gutteral Beast" dari RPG Sound Pack (OpenGameArt, CC0).</p>
     </details>
   </section>
 
@@ -107,7 +114,7 @@
 
     <div id="yourRole" class="role-chip hidden"></div>
 
-    <div id="revealArea" class="hidden">
+    <div id="revealArea" class="hidden"><canvas id="reveal3d" aria-hidden="true"></canvas>
       <div class="flip-wrap">
         <div class="flip-card" id="flipCard">
           <div class="flip-face flip-front">
@@ -164,9 +171,12 @@
 </main>
 
 <div id="toast" class="toast hidden"></div>
+<div id="fxOverlay" aria-hidden="true"><canvas id="pounce3d"></canvas><div id="fxEmoji"></div><div id="fxText"></div></div>
 <div id="confetti" aria-hidden="true"></div>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="app.js"></script>
+<script src="/lib/three.min.js"></script>
+<script src="fx3d.js?v=6"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

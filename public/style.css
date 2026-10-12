@@ -233,3 +233,46 @@ input[type="text"]:focus, select:focus { border-color: var(--accent2); box-shado
   .hero h1 { font-size: 1.7rem; }
   .flip-card { width: 220px; height: 310px; }
 }
+
+/* ---------- overlay efek narator (animasi momen game) ---------- */
+#fxOverlay { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; pointer-events: none; opacity: 0; }
+#fxOverlay.show { animation: fxFade 2s ease forwards; }
+#fxEmoji { font-size: 110px; line-height: 1; filter: drop-shadow(0 10px 24px rgba(0,0,0,.45)); }
+#fxText { font-size: clamp(20px, 5vw, 30px); font-weight: 800; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.65); letter-spacing: .3px; }
+#fxOverlay.fx-night { background: radial-gradient(ellipse at center, rgba(10,16,48,.25), rgba(4,6,26,.78)); }
+#fxOverlay.fx-night #fxEmoji { animation: fxMoon 2s ease; }
+#fxOverlay.fx-attack { background: radial-gradient(ellipse at center, rgba(80,0,0,.25), rgba(30,0,0,.82)); }
+#fxOverlay.fx-attack #fxEmoji { animation: fxLunge 2s ease; }
+#fxOverlay.fx-calm { background: radial-gradient(ellipse at center, rgba(255,170,60,.12), rgba(60,30,0,.45)); }
+#fxOverlay.fx-calm #fxEmoji, #fxOverlay.fx-vote #fxEmoji, #fxOverlay.fx-win #fxEmoji, #fxOverlay.fx-hunter #fxEmoji { animation: fxPop 2s ease; }
+#fxOverlay.fx-vote { background: radial-gradient(ellipse at center, rgba(40,60,140,.15), rgba(6,10,40,.6)); }
+#fxOverlay.fx-win { background: radial-gradient(ellipse at center, rgba(255,200,0,.15), rgba(50,35,0,.5)); }
+#fxOverlay.fx-execution { background: radial-gradient(ellipse at center, rgba(60,60,60,.2), rgba(0,0,0,.75)); }
+#fxOverlay.fx-execution #fxEmoji { animation: fxDrop 2s ease; }
+#fxOverlay.fx-hunter { background: radial-gradient(ellipse at center, rgba(120,60,0,.2), rgba(20,10,0,.7)); }
+#fxOverlay.fx-shot { background: radial-gradient(ellipse at center, rgba(255,120,0,.25), rgba(40,10,0,.7)); }
+#fxOverlay.fx-shot #fxEmoji { animation: fxBoom 2s ease; }
+@keyframes fxFade { 0% { opacity: 0; } 12% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes fxMoon { 0% { transform: translateY(-70px) scale(.6); opacity: 0; } 30% { transform: translateY(0) scale(1.05); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes fxLunge { 0% { transform: scale(.2) rotate(-14deg); opacity: 0; } 25% { transform: scale(1.5) rotate(4deg); opacity: 1; } 45% { transform: scale(1.25) rotate(0); } 100% { transform: scale(1.25); } }
+@keyframes fxPop { 0% { transform: scale(.3); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes fxDrop { 0% { transform: translateY(-110px); opacity: 0; } 30% { transform: translateY(0); opacity: 1; } 45% { transform: translateY(-12px); } 60% { transform: translateY(0); } 100% { transform: translateY(0); } }
+@keyframes fxBoom { 0% { transform: scale(.2); opacity: 0; } 20% { transform: scale(1.7); opacity: 1; } 45% { transform: scale(1.2); } 100% { transform: scale(1.2); } }
+body.shake { animation: bodyShake .5s ease; }
+@keyframes bodyShake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-9px); } 30% { transform: translateX(8px); } 45% { transform: translateX(-6px); } 60% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+
+/* ---------- animasi werewolf menerkam mangsa ---------- */
+#fxOverlay.show.fx-pounce { animation: fxFade 2.4s ease forwards; background: radial-gradient(ellipse at center, rgba(120,0,0,.35), rgba(20,0,0,.88)); }
+#fxOverlay.fx-pounce #fxEmoji { animation: fxLunge 2.4s ease; }
+#fxOverlay.fx-pounce::before, #fxOverlay.fx-pounce::after { content: ''; position: absolute; width: 190px; height: 30px; border-radius: 10px; background: repeating-linear-gradient(90deg, rgba(255,70,45,.9) 0 12px, transparent 12px 38px); transform: rotate(-32deg); opacity: 0; pointer-events: none; }
+#fxOverlay.fx-pounce::before { top: 24%; left: 10%; animation: fxSlash 2.4s ease .1s; }
+#fxOverlay.fx-pounce::after { bottom: 22%; right: 8%; animation: fxSlash 2.4s ease .3s; }
+@keyframes fxSlash { 0% { opacity: 0; transform: rotate(-32deg) translateX(-46px) scaleX(.4); } 22% { opacity: 1; } 55% { opacity: 1; transform: rotate(-32deg) translateX(0) scaleX(1); } 85% { opacity: 0; } 100% { opacity: 0; } }
+
+/* ---------- Lapisan 3D (Three.js) ---------- */
+.hero3d { width: 100%; height: 230px; display: block; border-radius: 14px; margin-top: 14px; background: radial-gradient(120% 100% at 50% 0%, #101a38 0%, #0a0f24 70%); }
+#reveal3d { width: 100%; height: 225px; display: block; margin-bottom: 8px; }
+#pounce3d { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+#fxOverlay.show3d #pounce3d { display: block; }
+#fxOverlay.show3d #fxEmoji { display: none; }
+#fxOverlay.show3d #fxText { position: relative; z-index: 2; text-shadow: 0 2px 16px #000, 0 0 30px rgba(255,60,40,.45); }

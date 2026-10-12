@@ -20,6 +20,7 @@ function uuid() {
 let myToken = localStorage.getItem('ww_token');
 if (!myToken) { myToken = uuid(); localStorage.setItem('ww_token', myToken); }
 let narratorOn = localStorage.getItem('ww_narrator') !== 'off';
+let musicOn = localStorage.getItem('ww_music') !== 'off';
 let storedRoom = localStorage.getItem('ww_room') || '';
 
 /* ---------- narator suara (Bahasa Indonesia) ---------- */
@@ -52,6 +53,119 @@ function updateNarratorBtn() {
   $('narratorBtn').textContent = narratorOn ? '🔊 Narator: ON' : '🔇 Narator: OFF';
 }
 
+/* ---------- narator rekaman (klip MP3 suara asli, seperti dongeng bergambar) ---------- */
+const ASSET_V = '?v=3'; // naikkan bila aset audio diganti, agar cache lama kalah
+const narratorAudio = new Audio();
+narratorAudio.preload = 'auto';
+function playClip(file, fallbackText) {
+  if (!narratorOn || !file) return;
+  try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
+  try {
+    narratorAudio.src = '/narasi/' + file + ASSET_V;
+    const p = narratorAudio.play();
+    if (p && typeof p.catch === 'function') p.catch(() => speak(fallbackText));
+  } catch (e) { speak(fallbackText); }
+}
+
+/* ---------- efek suara momen & musik latar seram ---------- */
+const sfxAudio = new Audio();
+function playSfx(file) {
+  if (!narratorOn) return; // tombol Narator = master untuk suara momen game
+  try {
+    sfxAudio.src = '/sfx/' + file + ASSET_V;
+    sfxAudio.currentTime = 0;
+    const p = sfxAudio.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch (e) {}
+}
+const bgm = new Audio('/sfx/musik-seram.mp3' + ASSET_V);
+bgm.loop = true;
+bgm.volume = 0.6;
+bgm.preload = 'auto';
+function updateMusicBtns() {
+  document.querySelectorAll('.musicBtn').forEach((b) => { b.textContent = musicOn ? '🎵 Musik: ON' : '🎵 Musik: OFF'; });
+}
+function syncBgm() {
+  const inGame = !!state && state.phase !== 'lobby';
+  const shouldPlay = musicOn && userGestured && !inGame;
+  try {
+    if (shouldPlay) { if (bgm.paused) bgm.play().catch(() => {}); }
+    else if (!bgm.paused) bgm.pause();
+  } catch (e) {}
+}
+
+/* ---------- efek animasi layar mengikuti momen game ---------- */
+const FX_MAP = {
+  start:            { emoji: '🎮', text: 'Permainan dimulai!', cls: 'fx-calm' },
+  nightfall:        { emoji: '🌙', text: 'Malam tiba…', cls: 'fx-night' },
+  'daybreak-death': { emoji: '🐺', text: 'Ada yang dimangsa!', cls: 'fx-attack' },
+  'daybreak-calm':  { emoji: '🌅', text: 'Pagi yang tenang…', cls: 'fx-calm' },
+  vote:             { emoji: '🗳️', text: 'Waktunya voting!', cls: 'fx-vote' },
+  execution:        { emoji: '⚖️', text: 'Eksekusi!', cls: 'fx-execution' },
+  tie:              { emoji: '🤝', text: 'Tidak ada eksekusi', cls: 'fx-calm' },
+  hunter:           { emoji: '🏹', text: 'Pemburu gugur!', cls: 'fx-hunter' },
+  shot:             { emoji: '💥', text: 'DOR!', cls: 'fx-shot' },
+  'hunter-expire':  { emoji: '🏹', text: 'Kesempatan berlalu…', cls: 'fx-calm' },
+  'win-warga':      { emoji: '🎉', text: 'Warga Desa menang!', cls: 'fx-win' },
+  'win-wolf':       { emoji: '🐺', text: 'Werewolf menang!', cls: 'fx-attack' },
+  'victim-eaten':   { emoji: '🐺', text: 'Kamu Dimangsa Werewolf!', cls: 'fx-attack' },
+  'victim-shot':    { emoji: '💥', text: 'Kamu Ditembak Pemburu!', cls: 'fx-shot' },
+};
+let fxTimer = null;
+/* serigala 3D menerkam kamera (momen pounce & korban); true bila 3D aktif */
+function showPounce3d() {
+  if (!(window.FX3D && FX3D.available)) return false;
+  const c = $('pounce3d');
+  if (!c) return false;
+  FX3D.pounce(c);
+  return true;
+}
+function playFx(kind) {
+  const fx = FX_MAP[kind];
+  const ov = $('fxOverlay');
+  if (!fx || !ov) return;
+  // Animasi menerkam (2,4 dtk) tidak boleh ditimpa efek pengumuman lain —
+  // tunda efek berikutnya sampai terkaman selesai.
+  const remain = (window.__pounceUntil || 0) - Date.now();
+  if (remain > 0) {
+    clearTimeout(window.__fxQueue);
+    window.__fxQueue = setTimeout(() => playFx(kind), remain + 80);
+    return;
+  }
+  const use3d = kind === 'victim-eaten' && showPounce3d();
+  $('fxEmoji').textContent = fx.emoji;
+  $('fxText').textContent = fx.text;
+  ov.className = '';
+  void ov.offsetWidth; // paksa animasi mulai dari awal walau overlay baru saja tampil
+  ov.className = 'show ' + fx.cls + (use3d ? ' show3d' : '');
+  if (fx.cls === 'fx-attack' || fx.cls === 'fx-shot') {
+    document.body.classList.remove('shake');
+    void document.body.offsetWidth;
+    document.body.classList.add('shake');
+  }
+  clearTimeout(fxTimer);
+  fxTimer = setTimeout(() => { ov.className = ''; document.body.classList.remove('shake'); }, 2000);
+}
+
+/* animasi khusus werewolf: kamu menerkam mangsa yang kamu pilih */
+function playPounce(victimName) {
+  const ov = $('fxOverlay');
+  if (!ov) return;
+  $('fxEmoji').textContent = '🐺';
+  $('fxText').textContent = `Kamu menerkam ${victimName}!`;
+  playSfx('efek-terkam.mp3');
+  const use3d = showPounce3d();
+  window.__pounceUntil = Date.now() + 2400;
+  ov.className = '';
+  void ov.offsetWidth; // paksa animasi mulai dari awal walau overlay baru saja tampil
+  ov.className = 'show fx-pounce' + (use3d ? ' show3d' : '');
+  document.body.classList.remove('shake');
+  void document.body.offsetWidth;
+  document.body.classList.add('shake');
+  clearTimeout(fxTimer);
+  fxTimer = setTimeout(() => { ov.className = ''; document.body.classList.remove('shake'); }, 2400);
+}
+
 /* ---------- koneksi ---------- */
 const socket = io();
 let state = null;
@@ -61,6 +175,8 @@ let lastNightPick = null;
 let lastNightNum = 0;
 let lastVote = undefined;
 let overCelebratedSeq = 0;
+let prevAlive = null;
+let userGestured = false;
 
 socket.on('connect', () => {
   if (storedRoom && !state) {
@@ -75,8 +191,23 @@ socket.on('state', (s) => {
   if (s.nightNum !== lastNightNum) { lastNightNum = s.nightNum; lastNightPick = null; lastVote = undefined; }
   if (s.announcement && s.announcement.seq > lastAnnounceSeq) {
     lastAnnounceSeq = s.announcement.seq;
-    if (s.announcement.speak) speak(s.announcement.speak);
+    if (s.announcement.clip) playClip(s.announcement.clip, s.announcement.speak);
+    else if (s.announcement.speak) speak(s.announcement.speak);
+    if (s.announcement.fx) playFx(s.announcement.fx);
   }
+  // sudut pandang korban: kamu baru saja gugur di momen ini
+  if (s.you) {
+    if (prevAlive === true && s.you.alive === false) {
+      const t = (s.announcement && s.announcement.title) || '';
+      if (/Tembakan/.test(t)) playFx('victim-shot');
+      else if ((s.phase === 'day' || s.phase === 'hunter') && !/Eksekusi/.test(t)) {
+        playFx('victim-eaten');
+        playSfx('efek-terkam.mp3');
+      }
+    }
+    prevAlive = s.you.alive;
+  }
+  if (s.phase === 'lobby') prevAlive = null;
   // mode solo: isi room dengan bot sampai 7 pemain, lalu mulai otomatis
   if (soloPending && s.phase === 'lobby' && s.you?.isHost) {
     if (s.players.length < 7) socket.emit('addBot');
@@ -123,6 +254,8 @@ function render() {
   if (!inRoom) {
     document.body.className = 'phase-home';
     showScreen('screen-home');
+    if (window.FX3D && FX3D.available) FX3D.hero($('hero3d'));
+    syncBgm();
     return;
   }
   $('roomChip').textContent = 'Room: ' + state.code;
@@ -136,6 +269,8 @@ function render() {
   if (state.phase === 'lobby') { showScreen('screen-lobby'); renderLobby(); }
   else if (state.phase === 'over') { showScreen('screen-over'); renderOver(); }
   else { showScreen('screen-game'); renderGame(); }
+  if (window.FX3D && FX3D.available) FX3D.stop($('hero3d'));
+  syncBgm();
 }
 
 /* ---------- lobby ---------- */
@@ -230,8 +365,9 @@ function renderGame() {
 
 function renderReveal(s) {
   const area = $('revealArea');
-  if (s.phase !== 'reveal') { area.classList.add('hidden'); return; }
+  if (s.phase !== 'reveal') { area.classList.add('hidden'); if (window.FX3D && FX3D.available) FX3D.stop($('reveal3d')); return; }
   area.classList.remove('hidden');
+  if (window.FX3D && FX3D.available) FX3D.reveal($('reveal3d'), s.you.role);
   const you = s.you;
   let extra = '';
   if (you.role === 'werewolf') {
@@ -465,7 +601,15 @@ document.addEventListener('click', (e) => {
   if (!btn || btn.disabled) return;
   const action = btn.dataset.action;
   const target = btn.dataset.target;
-  if (action === 'night') { lastNightPick = target; socket.emit('nightAction', { target }); render(); }
+  if (action === 'night') {
+    lastNightPick = target;
+    socket.emit('nightAction', { target });
+    if (state?.you?.role === 'werewolf') {
+      const victim = state.players.find((p) => p.token === target);
+      if (victim) playPounce(victim.name);
+    }
+    render();
+  }
   if (action === 'shoot') socket.emit('hunterShot', { target });
   if (action === 'vote') { lastVote = target; socket.emit('castVote', { target }); render(); }
   if (action === 'abstain') { lastVote = null; socket.emit('castVote', { target: null }); render(); }
@@ -506,9 +650,19 @@ $('narratorBtn').addEventListener('click', () => {
   narratorOn = !narratorOn;
   localStorage.setItem('ww_narrator', narratorOn ? 'on' : 'off');
   updateNarratorBtn();
-  if (narratorOn) speak('Narator aktif.');
-  else if ('speechSynthesis' in window) speechSynthesis.cancel();
+  if (narratorOn) playClip('tes-1.mp3', 'Narator aktif.');
+  else { try { narratorAudio.pause(); } catch (e) {} if ('speechSynthesis' in window) speechSynthesis.cancel(); }
 });
+document.querySelectorAll('.musicBtn').forEach((b) => b.addEventListener('click', () => {
+  musicOn = !musicOn;
+  localStorage.setItem('ww_music', musicOn ? 'on' : 'off');
+  updateMusicBtns();
+  userGestured = true;
+  syncBgm();
+}));
+window.addEventListener('pointerdown', () => { userGestured = true; syncBgm(); });
+window.addEventListener('keydown', () => { userGestured = true; syncBgm(); });
+updateMusicBtns();
 $('leaveBtn').addEventListener('click', () => {
   socket.emit('leaveRoom');
   state = null;
