@@ -102,3 +102,9 @@ test/simulate.js   Bot penguji end-to-end (multiplayer)
 test/simulate-bots.js  Bot penguji mode bot (1 manusia + bot server)
 test/simulate-chat.js  Penguji chat diskusi (aturan kirim + obrolan bot)
 ```
+
+## Kredit Aset Suara
+
+- Musik latar (`public/sfx/musik-seram.mp3`): "Dark Walk" oleh Kevin MacLeod (incompetech.com), lisensi Creative Commons Attribution 4.0 — http://creativecommons.org/licenses/by/4.0/ (volume disesuaikan untuk latar).
+- Efek terkaman (`public/sfx/efek-terkam.mp3`): "Gutteral Beast" dari RPG Sound Pack — OpenGameArt.org, lisensi CC0 (domain publik), dinormalisasi seperlunya.
+- Klip narator (`public/narasi/`): rekaman suara TTS Bahasa Indonesia yang dibuat khusus untuk game ini.

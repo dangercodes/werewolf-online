@@ -14,7 +14,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (/\.(mp3|ogg|wav)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 app.get('/health', (req, res) => res.json({ ok: true, rooms: rooms.size }));
 
 const PORT = process.env.PORT || 3000;
@@ -93,8 +97,15 @@ function newRoom(code, hostToken) {
   };
 }
 
-function announce(room, title, body, speak) {
-  room.announcement = { seq: room.announcement.seq + 1, title, body, speak: speak || body };
+// clip: nama dasar klip audio narator rekaman (folder public/narasi) — dipilih varian acaknya di sini
+// fx: efek animasi layar di client (overlay narator)
+const CLIP_VARIANTS = { mulai: 2, malam: 3, 'pagi-korban': 2, 'pagi-selamat': 2, 'pagi-sepi': 1, voting: 2, eksekusi: 2, seri: 2, 'pemburu-gugur': 1, tembakan: 2, 'pemburu-lewat': 1, 'menang-warga': 2, 'menang-wolf': 2 };
+function announce(room, title, body, speak, clip, fx) {
+  let clipFile = null;
+  if (clip && CLIP_VARIANTS[clip]) {
+    clipFile = `${clip}-${1 + Math.floor(Math.random() * CLIP_VARIANTS[clip])}.mp3`;
+  }
+  room.announcement = { seq: room.announcement.seq + 1, title, body, speak: speak || body, clip: clipFile, fx: fx || null };
 }
 // pilih satu variasi kalimat secara acak — narator terasa seperti ngobrol, bukan robot
 const vary = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -250,7 +261,9 @@ function endGame(room, winner) {
     : vary([
       'Yahh, desa jatuh juga ke tangan werewolf. Jumlah mereka sekarang sama banyaknya dengan warga…',
       'Werewolf menang! Diam-diam mereka menguasai desa. Warga yang tersisa cuma bisa pasrah…']);
-  announce(room, title, body, body);
+  announce(room, title, body, body,
+    winner === 'warga' ? 'menang-warga' : 'menang-wolf',
+    winner === 'warga' ? 'win-warga' : 'win-wolf');
   logLine(room, `🏁 Permainan selesai — ${winner === 'warga' ? 'Warga Desa' : 'Werewolf'} menang.`);
   broadcast(room);
 }
@@ -286,7 +299,8 @@ function startNight(room) {
     vary([
       `Nah, malam ke ${room.nightNum} pun tiba. Desa mulai terlelap. Werewolf, penerawang, sama dokter, giliran kalian beraksi. Sstt, pelan-pelan ya.`,
       `Oke, malam ke ${room.nightNum} dimulai. Yang punya tugas malam, silakan beraksi dari HP-nya masing-masing.`,
-      `Malam lagi nih, malam ke ${room.nightNum}. Semua tidur ya, kecuali yang lagi jaga malam.`]));
+      `Malam lagi nih, malam ke ${room.nightNum}. Semua tidur ya, kecuali yang lagi jaga malam.`]),
+    'malam', 'nightfall');
   logLine(room, `🌙 Malam ke-${room.nightNum} dimulai.`);
   clearTimer(room, 'night');
   room.timers.night = setTimeout(() => resolveNight(room), room.settings.nightSec * 1000);
@@ -351,7 +365,8 @@ function resolveNight(room) {
   if (hunter) {
     enterHunterPhase(room, hunter.token, 'day', ['🏹 Pemburu Gugur!',
       `Eh tunggu dulu — ${hunter.name} itu Pemburu! Dia masih sempat narik pelatuk sekali lagi sebelum beneran tumbang. Menunggu bidikan ${hunter.name}…`,
-      `Eh, tunggu dulu! ${hunter.name} itu ternyata Pemburu. Dia masih sempat nembak satu orang terakhir. Deg-degan nih...`]);
+      `Eh, tunggu dulu! ${hunter.name} itu ternyata Pemburu. Dia masih sempat nembak satu orang terakhir. Deg-degan nih...`,
+      'pemburu-gugur', 'hunter']);
     return;
   }
   if (checkWin(room)) return;
@@ -388,9 +403,12 @@ function startDay(room) {
       `Pagi semuanya. Tapi ada kabar buruk nih... semalam ${plainNames} ditemukan nggak bernyawa. Waduh, serem juga ya.`,
       `Pagi. Hmm, semalam ada kejadian. ${plainNames} jadi korban. Kasian banget.`]);
   }
+  const pagiClip = report.deaths.length ? 'pagi-korban' : (report.hadVictim && report.saved ? 'pagi-selamat' : 'pagi-sepi');
+  const pagiFx = report.deaths.length ? 'daybreak-death' : 'daybreak-calm';
   announce(room, `☀️ Pagi Hari ke-${room.dayNum}`,
     `${body} ${vary(['Nah, sekarang waktunya diskusi — menurut kalian siapa werewolf-nya?', 'Yuk diskusi dulu, siapa nih yang paling mencurigakan?', 'Oke, silakan diskusi. Tunjuk siapa yang gerak-geriknya paling aneh.'])}`,
-    `${speak} Nah, sekarang waktunya diskusi. Siapa menurut kalian werewolf-nya?`);
+    `${speak} Nah, sekarang waktunya diskusi. Siapa menurut kalian werewolf-nya?`,
+    pagiClip, pagiFx);
   logLine(room, `☀️ Pagi ke-${room.dayNum}: ${report.deaths.length ? report.deaths.map(t => room.players.get(t).name).join(', ') + ' gugur.' : 'tidak ada yang gugur.'}`);
   room.discussionEndsAt = now() + room.settings.discussionSec * 1000;
   clearTimer(room, 'discussion');
@@ -412,7 +430,8 @@ function startVoting(room) {
       'Nah, sekarang bagian paling deg-degan: voting. Tunjuk siapa yang menurutmu werewolf-nya!']),
     vary([
       'Oke oke, diskusinya cukup. Waktunya voting! Pilih satu orang yang paling kalian curigai.',
-      'Nah, sekarang waktunya voting. Siapa nih yang paling mencurigakan menurut kalian?']));
+      'Nah, sekarang waktunya voting. Siapa nih yang paling mencurigakan menurut kalian?']),
+    'voting', 'vote');
   logLine(room, '🗳️ Voting dimulai.');
   clearTimer(room, 'vote');
   room.timers.vote = setTimeout(() => resolveVoting(room), room.settings.voteSec * 1000);
@@ -446,7 +465,8 @@ function resolveVoting(room) {
         : 'Nggak ada suara yang masuk sama sekali… yaudah, hari ini nggak ada eksekusi.',
       tie
         ? vary(['Waduh, suaranya seri! Nggak ada yang dieksekusi hari ini.', 'Seri nih! Nggak ada yang dieksekusi hari ini.'])
-        : 'Nggak ada suara yang masuk. Nggak ada eksekusi hari ini.');
+        : 'Nggak ada suara yang masuk. Nggak ada eksekusi hari ini.',
+      tie ? 'seri' : null, 'tie');
     logLine(room, '🗳️ Voting selesai — tidak ada eksekusi.');
     if (checkWin(room)) return;
     startNight(room);
@@ -460,7 +480,8 @@ function resolveVoting(room) {
       `${victim.name} dapat suara terbanyak dan dieksekusi. Ternyata selama ini dia ${ROLE_INFO[victim.role].emoji} ${ROLE_INFO[victim.role].name}.`]),
     vary([
       `${victim.name} dieksekusi. Dan ternyata... dia itu ${ROLE_INFO[victim.role].name}!`,
-      `Voting selesai. ${victim.name} yang dieksekusi. Ternyata dia ${ROLE_INFO[victim.role].name}.`]));
+      `Voting selesai. ${victim.name} yang dieksekusi. Ternyata dia ${ROLE_INFO[victim.role].name}.`]),
+    'eksekusi', 'execution');
   if (victim.role === 'hunter') {
     enterHunterPhase(room, victim.token, 'night', null);
     return;
@@ -473,7 +494,7 @@ function enterHunterPhase(room, hunterToken, returnTo, ann) {
   room.phase = 'hunter';
   room.hunterPending = { hunterToken, returnTo };
   room.hunterEndsAt = now() + room.settings.hunterSec * 1000;
-  if (ann) announce(room, ann[0], ann[1], ann[2]);
+  if (ann) announce(room, ann[0], ann[1], ann[2], ann[3], ann[4]);
   clearTimer(room, 'hunter');
   room.timers.hunter = setTimeout(() => expireHunter(room), room.settings.hunterSec * 1000);
   broadcast(room);
@@ -496,7 +517,8 @@ function expireHunter(room) {
   logLine(room, `🏹 ${hunter?.name} tidak sempat menembak (waktu habis).`);
   announce(room, '🏹 Kesempatan Berlalu',
     `Yah, kelamaan — ${hunter?.name} nggak sempat nembak. Yaudah, kita lanjut aja ya.`,
-    `Yah, kelamaan. ${hunter?.name} nggak sempat nembak. Yaudah, lanjut aja.`);
+    `Yah, kelamaan. ${hunter?.name} nggak sempat nembak. Yaudah, lanjut aja.`,
+    'pemburu-lewat', 'hunter-expire');
   proceedAfterHunter(room, returnTo);
 }
 
@@ -511,7 +533,8 @@ function hunterShoot(room, hunterPlayer, targetToken) {
       `Di detik terakhir, ${hunterPlayer.name} nembak ${target.name}! ${target.name} tumbang, dan ternyata dia ${ROLE_INFO[target.role].emoji} ${ROLE_INFO[target.role].name}.`]),
     vary([
       `Dor! ${hunterPlayer.name} nembak ${target.name}! Dan ${target.name} ternyata... ${ROLE_INFO[target.role].name}!`,
-      `${hunterPlayer.name} nembak ${target.name} di detik terakhir. ${target.name} ternyata ${ROLE_INFO[target.role].name}.`]));
+      `${hunterPlayer.name} nembak ${target.name} di detik terakhir. ${target.name} ternyata ${ROLE_INFO[target.role].name}.`]),
+    'tembakan', 'shot');
   proceedAfterHunter(room, pending.returnTo);
 }
 
@@ -538,7 +561,8 @@ function startGame(room) {
   logLine(room, `🎮 Permainan dimulai dengan ${players.length} pemain: ${comp.werewolf} werewolf, ${comp.seer} penerawang, ${comp.doctor} dokter, ${comp.hunter} pemburu, ${comp.villager} warga.`);
   announce(room, '🎮 Permainan Dimulai!',
     'Peran udah dibagikan diam-diam. Cek peranmu di HP masing-masing ya — jangan sampai ada yang ngintip! Malam pertama bakal segera tiba.',
-    'Oke guys, permainan dimulai! Peran udah dibagikan diam-diam. Cek HP kalian masing-masing ya.');
+    'Oke guys, permainan dimulai! Peran udah dibagikan diam-diam. Cek HP kalian masing-masing ya.',
+    'mulai', 'start');
   room.phase = 'reveal'; // fase singkat: semua orang membaca perannya, host menekan mulai malam
   broadcast(room);
 }
