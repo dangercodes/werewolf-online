@@ -1,0 +1,12 @@
+# Blueprint deploy Render — game ini butuh server Node.js persisten (Socket.io),
+# jadi deploy sebagai Web Service, BUKAN static site / serverless.
+services:
+  - type: web
+    name: werewolf-online
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
