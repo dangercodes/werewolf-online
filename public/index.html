@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Werewolf Online — Main Bareng Teman Jarak Jauh</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐺</text></svg>">
+</head>
+<body class="phase-home">
+<div class="stars" aria-hidden="true"></div>
+<div class="moon" aria-hidden="true"></div>
+<div class="shooting" aria-hidden="true"></div>
+
+<header id="topbar" class="hidden">
+  <div class="brand">🐺 Werewolf Online</div>
+  <div class="top-actions">
+    <span id="roomChip" class="chip hidden"></span>
+    <button id="narratorBtn" class="btn small ghost" title="Narator suara Bahasa Indonesia">🔊 Narator: ON</button>
+    <button id="leaveBtn" class="btn small danger hidden">Keluar</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ HOME ============ -->
+  <section id="screen-home" class="screen">
+    <div class="hero">
+      <div class="hero-wolf">🐺</div>
+      <h1>WEREWOLF <span>ONLINE</span></h1>
+      <p class="tagline">Main bareng teman dari mana saja — buat room, bagikan kodenya, dan saling tuduh dari HP masing-masing!</p>
+    </div>
+
+    <div class="card">
+      <label class="lbl" for="nameInput">Nama kamu</label>
+      <input id="nameInput" type="text" maxlength="20" placeholder="cth: Budi" autocomplete="off">
+      <button id="createBtn" class="btn primary big">🎲 Buat Room Baru</button>
+      <div class="divider"><span>atau gabung room teman</span></div>
+      <label class="lbl" for="codeInput">Kode room</label>
+      <input id="codeInput" type="text" maxlength="4" placeholder="cth: K7QX" autocomplete="off" class="code-input">
+      <button id="joinBtn" class="btn big">🚪 Gabung Room</button>
+    </div>
+
+    <details class="card howto">
+      <summary>📖 Cara Main</summary>
+      <ol>
+        <li>Satu orang <b>membuat room</b> dan membagikan <b>kode 4 huruf</b> ke teman-teman (5–15 pemain).</li>
+        <li>Semua gabung pakai kode itu dari HP masing-masing. Host menekan <b>Mulai Game</b>.</li>
+        <li>Peran dibagikan <b>rahasia</b> oleh server: 🐺 Werewolf, 🔮 Penerawang, 💉 Dokter, 🏹 Pemburu (opsional), 🧑‍🌾 Warga.</li>
+        <li><b>Malam:</b> werewolf memilih mangsa, penerawang menerawang identitas, dokter melindungi seseorang — semua lewat HP masing-masing.</li>
+        <li><b>Siang:</b> korban diumumkan, semua diskusi (ada timer), lalu <b>voting</b> siapa yang dieksekusi.</li>
+        <li>Warga menang jika semua werewolf gugur. Werewolf menang jika jumlahnya menyamai warga. Selamat saling tuduh! 😄</li>
+      </ol>
+    </details>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="screen-lobby" class="screen hidden">
+    <div class="card center">
+      <div class="lbl">Kode Room — bagikan ke temanmu</div>
+      <div class="room-code" id="lobbyCode">----</div>
+      <button id="copyCodeBtn" class="btn small">📋 Salin Kode</button>
+      <div id="lobbyCount" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h3>👥 Pemain</h3>
+      <ul id="lobbyPlayers" class="player-list"></ul>
+    </div>
+
+    <div class="card" id="settingsCard">
+      <h3>⚙️ Pengaturan (Host)</h3>
+      <label class="switch-row">
+        <span>💉 Sertakan Dokter</span>
+        <input type="checkbox" id="setDoctor" checked>
+      </label>
+      <label class="switch-row">
+        <span>🏹 Sertakan Pemburu</span>
+        <input type="checkbox" id="setHunter">
+      </label>
+      <label class="switch-row">
+        <span>⏱️ Durasi diskusi</span>
+        <select id="setDiscussion">
+          <option value="60">60 detik</option>
+          <option value="120" selected>120 detik</option>
+          <option value="180">180 detik</option>
+          <option value="300">300 detik</option>
+        </select>
+      </label>
+      <div id="compositionInfo" class="muted"></div>
+    </div>
+
+    <button id="startBtn" class="btn primary big hidden">🎮 Mulai Game</button>
+    <div id="lobbyWait" class="card center muted hidden">Menunggu host memulai permainan…</div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="screen-game" class="screen hidden">
+    <div id="phaseBanner" class="phase-banner">🌙 Malam</div>
+
+    <div id="announceCard" class="card announce hidden">
+      <div id="announceTitle" class="announce-title"></div>
+      <div id="announceBody"></div>
+    </div>
+
+    <div id="yourRole" class="role-chip hidden"></div>
+
+    <div id="revealArea" class="hidden">
+      <div class="flip-wrap">
+        <div class="flip-card" id="flipCard">
+          <div class="flip-face flip-front">
+            <div class="flip-emoji">🎴</div>
+            <div>Kartu Peranmu</div>
+            <div class="muted small">Ketuk untuk membalik — pastikan tidak ada yang mengintip!</div>
+          </div>
+          <div class="flip-face flip-back" id="roleBack"></div>
+        </div>
+      </div>
+      <button id="beginNightBtn" class="btn primary big hidden">🌙 Mulai Malam Pertama</button>
+      <div id="revealWait" class="muted center hidden">Menunggu host memulai malam pertama…</div>
+    </div>
+
+    <div id="actionPanel"></div>
+
+    <div id="voteResultCard" class="card hidden"></div>
+
+    <div class="card">
+      <h3>🏘️ Warga Desa</h3>
+      <div id="playersGrid" class="players-grid"></div>
+    </div>
+
+    <details class="card">
+      <summary>📜 Catatan Permainan</summary>
+      <ul id="gameLog" class="log-list"></ul>
+    </details>
+  </section>
+
+  <!-- ============ GAME OVER ============ -->
+  <section id="screen-over" class="screen hidden">
+    <div class="card center">
+      <div id="overEmoji" class="over-emoji">🎉</div>
+      <h2 id="overTitle">Permainan Selesai</h2>
+      <p id="overBody" class="muted"></p>
+    </div>
+    <div class="card">
+      <h3>🎭 Semua Peran</h3>
+      <ul id="overPlayers" class="player-list"></ul>
+    </div>
+    <button id="playAgainBtn" class="btn primary big hidden">🔁 Main Lagi (Kembali ke Lobby)</button>
+    <div id="overWait" class="muted center hidden">Menunggu host…</div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+<div id="confetti" aria-hidden="true"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
